@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Menuju Arah Kiblat dengan Kompas Animasi</title>
+    <style>
+        /* Gaya Umum */
+        body {
+            font-family: 'Arial', sans-serif;
+            background: #f5f5f5;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            padding: 0;
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+        }
+
+        #qibla-container {
+            width: 90%;
+            max-width: 500px;
+            background-color: #ffffff;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+            padding: 30px;
+            text-align: center;
+            border-radius: 10px;
+            font-size: 18px;
+        }
+
+        #qibla-direction {
+            margin-top: 20px;
+            font-size: 20px;
+            font-weight: bold;
+            color: #0056b3;
+        }
+
+        #loading-spinner {
+            display: none;
+            margin: 20px;
+            border: 5px solid #ccc;
+            border-top: 5px solid #333;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        #compass {
+            width: 200px;
+            height: 200px;
+            border-radius: 50%;
+            border: 5px solid #333;
+            margin: 20px;
+            position: relative;
+            background: linear-gradient(to bottom, #ffffff 0%, #cccccc 100%);
+        }
+
+        .needle {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 2px;
+            height: 50%;
+            background-color: red;
+            transform-origin: 50% 100%;
+            transition: transform 0.5s ease-in-out; /* Rotasi halus */
+            transform: rotate(0deg);
+        }
+
+        #qibla-btn {
+            padding: 10px 20px;
+            background-color: #28a745;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-top: 20px;
+            transition: background-color 0.3s;
+        }
+
+        #qibla-btn:hover {
+            background-color: #218838;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="qibla-container">
+        <h1>Arah Kiblat dengan Kompas Animasi</h1>
+        <p>Tekan tombol di bawah ini untuk mencari arah kiblat dari lokasi Anda.</p>
+        <button id="qibla-btn" onclick="findQiblaDirection()">Cari Arah Kiblat</button>
+        <div id="qibla-direction"></div>
+        <div id="loading-spinner"></div>
+        <div id="compass">
+            <div class="needle" id="needle"></div>
+        </div>
+    </div>
+
+    <script>
+        // Koordinat Makkah (Lintang dan Bujur)
+        const meccaLatitude = 21.4225;   // Lintang Ka'bah
+        const meccaLongitude = 39.8262;  // Bujur Ka'bah
+
+        let currentHeading = 0; // Arah perangkat saat ini
+
+        // Fungsi untuk mendapatkan posisi pengguna dan menghitung arah kiblat
+        function findQiblaDirection() {
+            // Menampilkan spinner pemuatan
+            document.getElementById('loading-spinner').style.display = 'block';
+            document.getElementById('qibla-direction').textContent = '';
+
+            // Menggunakan Geolocation API untuk mendapatkan posisi saat ini
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(calculateQibla, handleError);
+            } else {
+                document.getElementById('qibla-direction').textContent = 'Geolocation tidak didukung oleh browser ini.';
+                document.getElementById('loading-spinner').style.display = 'none';
+            }
+        }
+
+        // Fungsi untuk menghitung arah kiblat
+        function calculateQibla(position) {
+            const userLatitude = position.coords.latitude;
+            const userLongitude = position.coords.longitude;
+
+            // Menghitung arah menggunakan rumus Haversine
+            const deltaLongitude = toRadians(meccaLongitude - userLongitude);
+            const userLatitudeRad = toRadians(userLatitude);
+            const meccaLatitudeRad = toRadians(meccaLatitude);
+
+            const y = Math.sin(deltaLongitude) * Math.cos(meccaLatitudeRad);
+            const x = Math.cos(userLatitudeRad) * Math.sin(meccaLatitudeRad) -
+                      Math.sin(userLatitudeRad) * Math.cos(meccaLatitudeRad) * Math.cos(deltaLongitude);
+
+            const bearing = (toDegrees(Math.atan2(y, x)) + 360) % 360;
+
+            // Menyembunyikan spinner pemuatan
+            document.getElementById('loading-spinner').style.display = 'none';
+
+            // Menampilkan arah kiblat
+            document.getElementById('qibla-direction').textContent = 'Arah Kiblat adalah ' + bearing.toFixed(2) + '° dari Utara';
+
+            // Mulai kompas jika orientasi perangkat tersedia
+            startCompass(bearing);
+        }
+
+        // Memulai kompas dengan mendengarkan perubahan orientasi perangkat
+        function startCompass(bearing) {
+            if (window.DeviceOrientationEvent) {
+                window.addEventListener('deviceorientation', (event) => handleOrientation(event, bearing), true);
+            } else {
+                alert("Perangkat Anda tidak mendukung orientasi perangkat.");
+            }
+        }
+
+        // Menangani orientasi perangkat untuk merotasi jarum kompas
+        function handleOrientation(event, bearing) {
+            currentHeading = event.alpha; // Mendapatkan arah perangkat (0-360 derajat)
+
+            const needle = document.getElementById('needle');
+
+            if (!isNaN(bearing)) {
+                // Menghitung sudut untuk memutar jarum
+                const angleToQibla = currentHeading - bearing;
+
+                // Menerapkan rotasi ke jarum dengan transisi halus
+                needle.style.transform = 'rotate(' + angleToQibla + 'deg)';
+            }
+        }
+
+        // Fungsi penanganan kesalahan
+        function handleError(error) {
+            document.getElementById('loading-spinner').style.display = 'none';
+            if (error.code === error.PERMISSION_DENIED) {
+                document.getElementById('qibla-direction').textContent = 'Izin untuk mengakses lokasi ditolak.';
+            } else if (error.code === error.POSITION_UNAVAILABLE) {
+                document.getElementById('qibla-direction').textContent = 'Posisi tidak tersedia.';
+            } else {
+                document.getElementById('qibla-direction').textContent = 'Terjadi kesalahan saat mengambil lokasi Anda.';
+            }
+        }
+
+        // Fungsi utilitas untuk mengonversi antara derajat dan radian
+        function toRadians(degrees) {
+            return degrees * (Math.PI / 180);
+        }
+
+        function toDegrees(radians) {
+            return radians * (180 / Math.PI);
+        }
+    </script>
+
+</body>
+</html>
